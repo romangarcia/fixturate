@@ -61,9 +61,15 @@ class Fixture[T](testClass: Class[T]) extends Logging {
     }
     
     private def populateProperties(instance: T, variant: FixtureVariant): T = {
-        import scala.collection.JavaConverters._
-        import org.apache.commons.beanutils.BeanUtils._
-        val propertiesMap = variant.properties.map( p => (p.key -> p.value) ).toMap.asJava
+    	import scala.collection.JavaConverters._
+    	import org.apache.commons.beanutils.BeanUtils._
+    	import org.apache.commons.beanutils.PropertyUtils._
+
+    	val props = variant.properties
+
+        val propTypes = props.map (p => getPropertyType(instance, p.key))
+        val propValues = convertProperties(props, propTypes.toArray)
+        val propertiesMap = props.map(_.key).zip(propValues).toMap.asJava
         populate(instance, propertiesMap)
         instance
     }
