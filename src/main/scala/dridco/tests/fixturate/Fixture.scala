@@ -2,7 +2,6 @@ package dridco.fixturate
 
 import scala.reflect.ClassTag
 import scala.collection.JavaConverters._
-import java.beans.Introspector
 import dridco.tests.fixturate.FixtureData
 import dridco.tests.fixturate.FixtureParser
 import java.io.InputStreamReader
@@ -10,10 +9,12 @@ import scala.util.control.NonFatal
 import java.lang.reflect.Constructor
 import dridco.tests.fixturate.FixtureVariant
 import grizzled.slf4j.Logging
-import org.apache.commons.beanutils.ConvertUtils
-import org.apache.commons.beanutils.ConstructorUtils
 import scala.collection.JavaConverters
-import org.apache.commons.beanutils.BeanUtils
+import dridco.tests.fixturate.FixtureLiteral
+import dridco.tests.fixturate.FixtureRef
+import dridco.tests.fixturate.FixtureValue
+import dridco.tests.fixturate.FixtureProperty
+import java.beans.ReflectionUtils
 
 object Fixture {
     def apply[T](testClass: Class[T]): Fixture[T] = new Fixture[T](testClass)
@@ -27,7 +28,9 @@ class Fixture[T](testClass: Class[T]) extends Logging {
     lazy val data: FixtureData = {
         val stream = testClass.getResourceAsStream(path)
         try {
-        	FixtureParser.parse(new InputStreamReader(stream, "UTF-8")).get
+        	val tmp = FixtureParser.parse(new InputStreamReader(stream, "UTF-8")).get
+        	info("Succesfully parsed fixture: " + tmp)
+        	tmp
         } finally {
             stream.close
         }
@@ -36,10 +39,13 @@ class Fixture[T](testClass: Class[T]) extends Logging {
     def get(): T = get("default")
     
     def get(variant: String): T = {
-        val fixtureVariant = data.variant(variant).getOrElse {
+
+    	val fixtureVariant = data.variant(variant).getOrElse {
             throw new IllegalArgumentException(s"No valid variant found [name: ${variant}]")
         }
 
+        val p = fixtureVariant.properties
+        
         val constructors = testClass.getConstructors()
         val instance = if (constructors.isEmpty) {
             throw new IllegalStateException(s"No constructors available to instantiate Fixture (${testClass.getSimpleName})")
@@ -51,28 +57,30 @@ class Fixture[T](testClass: Class[T]) extends Logging {
         	findValidConstructor(fixtureVariant, constructors)
         }
         
-        populate(instance, fixtureVariant)
+        populateProperties(instance, fixtureVariant)
     }
     
-    private def populate(instance: T, variant: FixtureVariant): T = {
+    private def populateProperties(instance: T, variant: FixtureVariant): T = {
         import scala.collection.JavaConverters._
+        import org.apache.commons.beanutils.BeanUtils._
         val propertiesMap = variant.properties.map( p => (p.key -> p.value) ).toMap.asJava
-        BeanUtils.populate(instance, propertiesMap)
+        populate(instance, propertiesMap)
         instance
     }
 
     private def findValidConstructor(variant: FixtureVariant, constructors: Array[Constructor[_]]): T = {
-        val values = variant.properties.map(_.value)
         
         var tempInstance: Option[T] = None
 		constructors.foreach { c =>
 		    if (tempInstance.isEmpty) {
 		    	try {
-		    		val constructorArguments = convertProperties(values, c.getParameterTypes())
+		    		val constructorArguments = convertProperties(variant.properties, c.getParameterTypes())
 		    		info(s"Converted constructor arguments: ${constructorArguments}")
     				tempInstance = Some(c.newInstance(constructorArguments.toSeq:_*).asInstanceOf[T])
 		    	} catch {
-		    		case NonFatal(e) => debug(s"Not valid constructor ${c} for model ${testClass}...", e)// ignore...we won't use this constructor
+		    		case NonFatal(e) =>
+		    		    // ignore...we won't use this constructor
+		    		    debug(s"Not valid constructor ${c} for model ${testClass}...", e)
 		    	}
 		    }
         }
@@ -82,16 +90,31 @@ class Fixture[T](testClass: Class[T]) extends Logging {
         }
     }
     
-    private def convertProperties(props: List[Any], types: Array[Class[_]]): List[AnyRef] = {
+    private def convertProperties(props: List[FixtureProperty], types: Array[Class[_]]): List[AnyRef] = {
+    	import org.apache.commons.beanutils.ConvertUtils._
+    	import org.apache.commons.beanutils.PropertyUtils._
         
-    	val propsWithTypes = props.zip(types)
-        val args = propsWithTypes.take(types.length)
+        val args = props.take(types.length)
+
+        val argsValues = args.zip(types).map {
+        	case (FixtureProperty(_, FixtureLiteral(value)), expType) => value
+        	case (FixtureProperty(pName, FixtureRef(variant, optClass)), expType) => {
+        	    // dereference fixture class
+        	    val fixtureType = optClass.orElse {
+        	        getPropertyDescriptors(testClass).find(_.getName == pName).map(_.getPropertyType)
+        	    }.orElse(Some(expType)).getOrElse {
+        	        throw new IllegalStateException(s"Cannot convert arguments for fixture [ref: ${pName}, type: ${expType}]")
+        	    }
+        	    
+        	    Fixture(fixtureType).get(variant)
+        	}
+    	}
         
-        val newArgs = args map { 
+        val newArgs = argsValues.zip(types) map { 
             case (arg, tpe) if arg.getClass.isAssignableFrom(tpe) => arg.asInstanceOf[AnyRef]
             case (arg, tpe) => {
             	info(s"Converting property [value: ${arg}, to-type: ${tpe}]")
-            	ConvertUtils.convert(arg, tpe).asInstanceOf[AnyRef]
+            	convert(arg, tpe).asInstanceOf[AnyRef]
             } 
         }
         

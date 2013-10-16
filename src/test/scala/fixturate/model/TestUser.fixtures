@@ -1,10 +1,10 @@
-[prueba]
+[pepe]
 firstName = "Pepe"
 lastName  = "Mugica"
 age       = 65
 alive     = true
     
-[otra prueba]
+[cristina fernandez]
 firstName = "Cristina"
 lastName  = "Kirchner"
 age       = 50

@@ -1,0 +1,4 @@
+[default]
+item           = 4321
+description    = "Un producto berreta"
+user           = $[pepe]

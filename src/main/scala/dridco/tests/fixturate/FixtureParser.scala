@@ -13,32 +13,34 @@ case class FixtureData(variants: List[FixtureVariant]) {
 	def variant(name: String): Option[FixtureVariant] = variantsMap.get(name)
 }
 
-case class FixtureProperty(key: String, value: Any) 
+case class FixtureProperty(key: String, value: FixtureValue) 
 
 case class FixtureVariant(name: String, properties: List[FixtureProperty]) {
 	private lazy val propertiesMap = properties map ( p => (p.key -> p.value) ) toMap
 	def property[T](key: String): Option[T] = propertiesMap.get(key).map(_.asInstanceOf[T])
 }
 
-object FixtureParser extends JavaTokenParsers {
+sealed abstract class FixtureValue
+case class FixtureLiteral(value: Any) extends FixtureValue
+case class FixtureRef(variant: String, model: Option[Class[_]]) extends FixtureValue
 
-	private def boolean = "(?i)true|false".r
-	
-    private def propertyKey = ident
-    
+object FixtureParser extends JavaTokenParsers {
+	private def stringsAndWhitespaces = """[\w\s]+""".r
+
+	private def boolean = "(?i)true|false".r ^^ { b => FixtureLiteral(b.toBoolean) }
+	private def numeric = wholeNumber ^^ { n => FixtureLiteral(n.toDouble) }
+	private def string = stringLiteral ^^ { s => FixtureLiteral(s.substring(1, s.size - 1)) }
+	private def ref = "$[" ~> stringsAndWhitespaces <~ "]" ^^ { r => FixtureRef(r, None) } 
+
+	private def propertyKey = ident
     private def equalSign = ":|=".r
-    
-    private def propertyValue: Parser[Any] = (wholeNumber | stringLiteral | boolean) ^^ {t =>
-    	Try(t.toBoolean).orElse( Try(t.toDouble) ).orElse( Try(t) ).get
-    }
+    private def propertyValue: Parser[FixtureValue] = (numeric | string | boolean | ref)
     
     private def property = (propertyKey ~ equalSign ~ propertyValue) ^^ {
         case k ~ _ ~ v => FixtureProperty(k, v)
     } 
     
     private def propertyList = rep(property)
-    
-    private def stringsAndWhitespaces = """[\w\s]+""".r
     
     private def variant = (("[" ~> stringsAndWhitespaces <~ "]") ~ propertyList) ^^ {
         case (variantName ~ pList) => FixtureVariant(variantName, pList)

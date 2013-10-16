@@ -9,18 +9,20 @@ import scala.util.Success
 
 class FixtureParserSpec extends WordSpec with ShouldMatchers {
 
-    val singleSection = """
-[prueba]
+    val singleVariant = """
+[pepe]
 firstName = "Pepe"
 lastName  = "Mugica"
 age       = 65        
+alive     = true        
 """
         
-	val multiSection = singleSection + """
-[otra prueba]
+	val multiVariant = singleVariant + """
+[cristina fernandez]
 firstName = "Cristina"
 lastName  = "Kirchner"
 age       = 50
+alive     = false	
 """
         
     implicit def string2Reader(s: String) = new {
@@ -28,22 +30,35 @@ age       = 50
     }
         
     "Fixture Parser" should {
-        "parse single section" in {
-            FixtureParser.parse(singleSection.reader) should be ('success)
+        "parse single variant" in {
+            FixtureParser.parse(singleVariant.reader) should be ('success)
         }
         
-        "parse multi section" in {
-        	FixtureParser.parse(multiSection.reader) should be ('success)
+        "parse multi variant" in {
+        	FixtureParser.parse(multiVariant.reader) should be ('success)
         }
         
-        "parse 2 sections in multi sections" in {
-        	FixtureParser.parse(multiSection.reader).get.variants.length should be (2)
+        "parse 2 variants in multi variants" in {
+        	FixtureParser.parse(multiVariant.reader).get.variants.length should be (2)
         }
         
-        "parse section names" in {
-        	val file = FixtureParser.parse(multiSection.reader).get
-			file.variants(0).name should be ("prueba")
-        	file.variants(1).name should be ("otra prueba")
+        "parse variant names" in {
+        	val data = FixtureParser.parse(multiVariant.reader).get
+			data.variants(0).name should be ("pepe")
+        	data.variants(1).name should be ("cristina fernandez")
+        }
+        
+        "parse complete variants data" in {
+        	val data = FixtureParser.parse(multiVariant.reader).get
+			val pepe = data.variant("pepe").get.properties
+			pepe(0).key should be ("firstName")
+        	pepe(0).value should be ("Pepe")
+        	pepe(1).key should be ("lastName")
+        	pepe(1).value should be ("Mugica")
+        	pepe(2).key should be ("age")
+        	pepe(2).value should be (65)
+        	pepe(3).key should be ("alive")
+        	pepe(3).value should equal (true)
         }
         
     }
