@@ -1,0 +1,11 @@
+[prueba]
+firstName = "Pepe"
+lastName  = "Mugica"
+age       = 65
+alive     = true
+    
+[otra prueba]
+firstName = "Cristina"
+lastName  = "Kirchner"
+age       = 50
+alive     = false
