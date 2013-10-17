@@ -2,3 +2,13 @@
 item           = 4321
 description    = "Un producto berreta"
 user           = $[pepe]
+
+[producto uno]
+item           = 1
+description    = "Producto Uno"
+user           = $[pepe]
+
+[producto dos]
+item           = 2
+description    = "Producto Dos"
+user           = $[cristina fernandez]

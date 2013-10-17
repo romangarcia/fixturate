@@ -4,7 +4,6 @@ import scala.util.parsing.combinator.JavaTokenParsers
 import scala.util.Try
 import scala.util.Try._
 import java.io.Reader
-import scala.reflect.ClassTag
 import java.util.Date
 import java.text.DateFormat
 
@@ -13,11 +12,12 @@ case class FixtureData(variants: List[FixtureVariant]) {
 	def variant(name: String): Option[FixtureVariant] = variantsMap.get(name)
 }
 
-case class FixtureProperty(key: String, value: FixtureValue) 
+case class FixtureProperty(key: String, values: List[FixtureValue]) 
 
 case class FixtureVariant(name: String, properties: List[FixtureProperty]) {
-	private lazy val propertiesMap = properties map ( p => (p.key -> p.value) ) toMap
-	def property[T](key: String): Option[T] = propertiesMap.get(key).map(_.asInstanceOf[T])
+	private lazy val propertiesMap = properties map ( p => (p.key -> p.values) ) toMap
+	def property[T](key: String): Option[T] = propertiesMap.get(key).flatMap(_.headOption.asInstanceOf[Option[T]])
+	def propertyList[T](key: String): Option[List[T]] = propertiesMap.get(key).map(_.asInstanceOf[List[T]])
 }
 
 sealed abstract class FixtureValue
@@ -28,15 +28,16 @@ object FixtureParser extends JavaTokenParsers {
 	private def stringsAndWhitespaces = """[\w\s]+""".r
 
 	private def boolean = "(?i)true|false".r ^^ { b => FixtureLiteral(b.toBoolean) }
-	private def numeric = wholeNumber ^^ { n => FixtureLiteral(n.toDouble) }
+	private def long = wholeNumber ^^ { n => FixtureLiteral(n.toLong) }
+	private def double = decimalNumber ^^ { n => FixtureLiteral(n.toDouble) }
 	private def string = stringLiteral ^^ { s => FixtureLiteral(s.substring(1, s.size - 1)) }
 	private def ref = "$[" ~> stringsAndWhitespaces <~ "]" ^^ { r => FixtureRef(r, None) } 
 
 	private def propertyKey = ident
     private def equalSign = ":|=".r
-    private def propertyValue: Parser[FixtureValue] = (numeric | string | boolean | ref)
+    private def propertyValue: Parser[FixtureValue] = (double | long | string | boolean | ref)
     
-    private def property = (propertyKey ~ equalSign ~ propertyValue) ^^ {
+    private def property = (propertyKey ~ equalSign ~ repsep(propertyValue, ",")) ^^ {
         case k ~ _ ~ v => FixtureProperty(k, v)
     } 
     

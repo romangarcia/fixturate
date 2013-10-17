@@ -103,8 +103,8 @@ class Fixture[T](testClass: Class[T]) extends Logging {
         val args = props.take(types.length)
 
         val argsValues = args.zip(types).map {
-        	case (FixtureProperty(_, FixtureLiteral(value)), expType) => value
-        	case (FixtureProperty(pName, FixtureRef(variant, optClass)), expType) => {
+        	case (FixtureProperty(_, List(FixtureLiteral(value))), expType) => value
+        	case (FixtureProperty(pName, List(FixtureRef(variant, optClass))), expType) => {
         	    // dereference fixture class
         	    val fixtureType = optClass.orElse {
         	        getPropertyDescriptors(testClass).find(_.getName == pName).map(_.getPropertyType)
@@ -118,6 +118,10 @@ class Fixture[T](testClass: Class[T]) extends Logging {
         
         val newArgs = argsValues.zip(types) map { 
             case (arg, tpe) if arg.getClass.isAssignableFrom(tpe) => arg.asInstanceOf[AnyRef]
+            case (arg, tpe) if tpe.isAssignableFrom(classOf[java.util.Collection[_]]) => {
+            	info(s"Converting property collection [value: ${arg}, to-type: ${tpe}]")
+                arg.asInstanceOf[AnyRef]
+            }
             case (arg, tpe) => {
             	info(s"Converting property [value: ${arg}, to-type: ${tpe}]")
             	convert(arg, tpe).asInstanceOf[AnyRef]
