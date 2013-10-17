@@ -1,0 +1,3 @@
+[default]
+number         = 1
+orders    	   = $[producto uno], $[producto dos]
