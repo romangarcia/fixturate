@@ -19,7 +19,7 @@
 
 package dridco.tests.fixturate
 
-import scala.reflect.ClassTag
+import scala.reflect._
 import java.io.InputStreamReader
 import scala.util.control.NonFatal
 import java.lang.reflect.{ParameterizedType, Type, Constructor}
@@ -27,8 +27,8 @@ import grizzled.slf4j.Logging
 import org.apache.commons.beanutils.PropertyUtils._
 import org.apache.commons.beanutils.ConvertUtils._
 import org.apache.commons.beanutils.BeanUtils._
-import scala.collection.JavaConverters._
 import org.apache.commons.beanutils.PropertyUtils
+import scala.collection.JavaConverters._
 
 object Fixture {
   def apply[T](testClass: Class[T]): Fixture[T] = new Fixture[T](testClass)
@@ -138,9 +138,10 @@ class Fixture[T](testClass: Class[T]) extends Logging {
   implicit class PimpedType(aType: Type) {
     def toClass: Class[_] = resolveClass(aType)
 
-    def isJavaCollection: Boolean = toClass.isAssignableFrom(classOf[java.util.Collection[_]])
+    def isJavaCollection: Boolean = classOf[java.util.Collection[_]].isAssignableFrom(aType.toClass)
 
-    def isScalaCollection: Boolean = toClass.isAssignableFrom(classOf[scala.collection.immutable.List[_]])
+    def isScalaCollection: Boolean = classOf[scala
+    .collection.immutable.Seq[_]].isAssignableFrom(aType.toClass)
 
     private def resolveClass(aType: Type): Class[_] = aType match {
       case cl: Class[_] => cl
@@ -173,17 +174,15 @@ class Fixture[T](testClass: Class[T]) extends Logging {
     case (FixtureProperty(pName, values), expType) if expType.isJavaCollection => {
       withCollection(values, expType) {
         actualValues =>
-          import scala.collection.JavaConverters._
-          expType match {
-            case l: java.util.List[_] => new java.util.ArrayList(actualValues.asJavaCollection)
-            case s: java.util.Set[_] => new java.util.HashSet(actualValues.asJavaCollection)
+          ClassTag(expType.toClass) match {
+            case c if c <:< classTag[java.util.List[_]] => new java.util.ArrayList(actualValues.asJavaCollection)
+            case c if c <:< classTag[java.util.Set[_]] => new java.util.HashSet(actualValues.asJavaCollection)
           }
       }
     }
     case (FixtureProperty(pName, values), expType) if expType.isScalaCollection => {
       withCollection(values, expType) {
         actualValues =>
-          import scala.reflect._
           ClassTag(expType.toClass) match {
             case c if c <:< classTag[List[_]] => actualValues
             case c if c <:< classTag[Seq[_]] => actualValues.toSeq
