@@ -156,9 +156,43 @@ Example
 
 *Invoice fixtures (file fixturate/example/Invoice.fixtures)*
 
-    [default]
+    [invoice for john and jane]
     number         = 1
     orders    	   = $[product one for john], $[product two for jane]
+
+Usage
+=====
+
+*Java*
+------
+
+    import static dridco.tests.fixturate.java.Fixturate.*;
+
+    public class FixturateTest {
+
+        @Test
+        public void someInvoiceTest() throws Exception {
+            JavaInvoice invoice = fixture(JavaInvoice.class).in("invoice for john and jane").get();
+            assertEquals(1L, invoice.getNumber());
+            assertEquals(2, invoice.getOrders().size());
+        }
+
+    }
+
+*Scala*
+-------
+
+    class FixtureSpec extends WordSpec with ShouldMatchers {
+        "Fixture" should {
+            "retrieve complete TestInvoice" in {
+                val invoice = Fixture[TestInvoice].get("invoice for john and jane")
+                invoice.number should be(1L)
+                invoice.orders should have length (2)
+                invoice.orders(0) should be(TestOrder(1L, "Product One", TestUser("John", "Doe")))
+                invoice.orders(1) should be(TestOrder(2L, "Product Two", TestUser("Jane", "Doe")))
+            }
+        }
+    }
 
 What's missing
 ==============
