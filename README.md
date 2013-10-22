@@ -1,7 +1,6 @@
 Fixturate
 =========
-:Info: Test Fixtures for Java
-:Author: Roman Garcia <romangarciam@gmail.com>
+   Author: Roman Garcia <romangarciam@gmail.com>
 
 About
 =====
