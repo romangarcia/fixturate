@@ -24,15 +24,21 @@
     <artifactId>fixturate</artifactId>
     <version>0.0.1-SNAPSHOT</version>
     <name>${project.artifactId}</name>
-    <description>My wonderfull scala app</description>
-    <inceptionYear>2010</inceptionYear>
+    <description>Test Fixtures for Java</description>
+    <inceptionYear>2013</inceptionYear>
+
     <licenses>
         <license>
-            <name>My License</name>
-            <url>http://....</url>
+            <name>The Apache Software License, Version 2.0</name>
+            <url>http://www.apache.org/licenses/LICENSE-2.0.txt</url>
             <distribution>repo</distribution>
         </license>
     </licenses>
+
+    <organization>
+        <name>Dridco S.A.</name>
+        <url>http://www.dridco.com</url>
+    </organization>
 
     <properties>
         <maven.compiler.source>1.6</maven.compiler.source>
