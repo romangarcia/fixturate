@@ -19,9 +19,9 @@
 
 package dridco.tests.fixturate
 
+import _root_.java.io.Reader
 import scala.util.parsing.combinator.JavaTokenParsers
 import scala.util.Try
-import java.io.Reader
 
 case class FixtureData(variants: List[FixtureVariant]) {
   private lazy val variantsMap = variants.map(s => (s.name -> s)).toMap
@@ -40,9 +40,8 @@ case class FixtureVariant(name: String, properties: List[FixtureProperty]) {
 }
 
 sealed abstract class FixtureValue
-
 case class FixtureLiteral(value: Any) extends FixtureValue
-
+case class FixtureEnum(value: String, model: Option[Class[_]]) extends FixtureValue
 case class FixtureRef(variant: String, model: Option[Class[_]]) extends FixtureValue
 
 
@@ -69,11 +68,15 @@ object FixtureParser extends JavaTokenParsers {
     r => FixtureRef(r, None)
   }
 
+  private def enum = ident ^^ {
+    e => FixtureEnum(e, None)
+  }
+
   private def propertyKey = ident
 
   private def equalSign = ":|=".r
 
-  private def propertyValue: Parser[FixtureValue] = double | long | string | boolean | ref
+  private def propertyValue: Parser[FixtureValue] = double | long | string | boolean | ref | enum
 
   private def property = (propertyKey ~ equalSign ~ repsep(propertyValue, ",")) ^^ {
     case k ~ _ ~ v => FixtureProperty(k, v)

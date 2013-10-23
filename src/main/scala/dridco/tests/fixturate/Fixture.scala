@@ -19,10 +19,10 @@
 
 package dridco.tests.fixturate
 
+import _root_.java.io.InputStreamReader
+import _root_.java.lang.reflect.{Type, ParameterizedType, Constructor}
 import scala.reflect._
-import java.io.InputStreamReader
 import scala.util.control.NonFatal
-import java.lang.reflect.{ParameterizedType, Type, Constructor}
 import grizzled.slf4j.Logging
 import org.apache.commons.beanutils.PropertyUtils._
 import org.apache.commons.beanutils.ConvertUtils._
@@ -43,9 +43,9 @@ class Fixture[T](testClass: Class[T]) extends Logging {
   lazy val data: FixtureData = {
     val stream = testClass.getResourceAsStream(path).ensuring(_ != null, s"Fixture cannot be found at $path")
     try {
-      val tmp = FixtureParser.parse(new InputStreamReader(stream, "UTF-8")).get
-      info("Successfully parsed fixture: " + tmp)
-      tmp
+      val fixData = FixtureParser.parse(new InputStreamReader(stream, "UTF-8")).get
+      debug("Successfully parsed fixture: " + fixData)
+      fixData
     } finally {
       stream.close()
     }
@@ -103,7 +103,7 @@ class Fixture[T](testClass: Class[T]) extends Logging {
           try {
             val constructorTypes = c.getGenericParameterTypes
             val constructorArguments = convertProperties(variant.properties, constructorTypes)
-            info(s"Converted constructor arguments: $constructorArguments")
+            debug(s"Converted constructor arguments: $constructorArguments")
             tempInstance = Some(c.newInstance(constructorArguments.toSeq: _*).asInstanceOf[T])
           } catch {
             case NonFatal(e) =>
@@ -119,26 +119,14 @@ class Fixture[T](testClass: Class[T]) extends Logging {
   }
 
   def resolveFixtureRef(pName: Option[String], optClass: Option[Class[_]], expType: Class[_], variant: String): AnyRef = {
-    /*val fixtureType = optClass.orElse {
-      getPropertyDescriptors(testClass).find(pd => pName.forall(_ == pd.getName)).map(_.getPropertyType)
-    }.orElse(Some(expType)).getOrElse {
-      throw new IllegalStateException(s"Cannot convert arguments for fixture [ref: $pName, type: $expType]")
-    }*/
-
-    val fixtureType = if (optClass.isDefined) optClass.get
-    else {
-      /*val propClass = getPropertyDescriptors(testClass).find(pd => pName.forall(_ == pd.getName)).map(_.getPropertyType)
-      if (propClass.isDefined) propClass.get
-      else */ expType
-    }
-
+    val fixtureType = optClass.getOrElse(expType)
     Fixture(fixtureType).get(variant).asInstanceOf[AnyRef] // FIXME: check variance to avoid casting?
   }
 
   implicit class PimpedType(aType: Type) {
     def toClass: Class[_] = resolveClass(aType)
 
-    def isJavaCollection: Boolean = classOf[java.util.Collection[_]].isAssignableFrom(aType.toClass)
+    def isJavaCollection: Boolean = classOf[_root_.java.util.Collection[_]].isAssignableFrom(aType.toClass)
 
     def isScalaCollection: Boolean = classOf[scala
     .collection.immutable.Seq[_]].isAssignableFrom(aType.toClass)
@@ -151,32 +139,34 @@ class Fixture[T](testClass: Class[T]) extends Logging {
   }
 
   private def convertProperties(props: List[FixtureProperty], types: Array[Type]): List[AnyRef] = {
-
     val args = props.take(types.length)
-
     val argsValues = args.zip(types).map {
       propAndType =>
         convertProperty(propAndType)
     }
-
 
     argsValues
   }
 
   private def convertProperty(propAndType: (FixtureProperty, Type)): AnyRef = propAndType match {
     case (FixtureProperty(_, List(FixtureLiteral(value))), expType) =>
-      info(s"Converting property [value: $value, to-type: $expType]")
+      // fixture literal
+      debug(s"Converting property [value: $value, to-type: $expType]")
       convert(value, expType.toClass)
     case (FixtureProperty(pName, List(FixtureRef(variant, optClass))), expType) => {
-      // dereference fixture class
+      // fixture ref
       resolveFixtureRef(Some(pName), optClass, expType.toClass, variant)
+    }
+    case (FixtureProperty(pName, List(FixtureEnum(value, optClass))), expType) => {
+      // fixture enum
+      resolveEnum(value, expType)
     }
     case (FixtureProperty(pName, values), expType) if expType.isJavaCollection => {
       withCollection(values, expType) {
         actualValues =>
           ClassTag(expType.toClass) match {
-            case c if c <:< classTag[java.util.List[_]] => new java.util.ArrayList(actualValues.asJavaCollection)
-            case c if c <:< classTag[java.util.Set[_]] => new java.util.HashSet(actualValues.asJavaCollection)
+            case c if c <:< classTag[_root_.java.util.List[_]] => new _root_.java.util.ArrayList(actualValues.asJavaCollection)
+            case c if c <:< classTag[_root_.java.util.Set[_]] => new _root_.java.util.HashSet(actualValues.asJavaCollection)
           }
       }
     }
@@ -192,6 +182,13 @@ class Fixture[T](testClass: Class[T]) extends Logging {
     }
   }
 
+  def resolveEnum(value: String, expType: Type): AnyRef = {
+    val values = expType.toClass.getEnumConstants
+    values.find(v => v.toString == value).getOrElse {
+      throw new Exception(s"Cannot map enum with value [$value] to enum type [$expType.toClass]")
+    }.asInstanceOf[AnyRef]
+  }
+
   def withCollection(values: List[FixtureValue], expType: Type)(block: List[AnyRef] => AnyRef): AnyRef = {
     val elemClass = expType match {
       case pt: ParameterizedType => pt.getActualTypeArguments()(0).toClass
@@ -201,6 +198,7 @@ class Fixture[T](testClass: Class[T]) extends Logging {
     val actualValues = values map {
       case FixtureLiteral(value) => convert(value, elemClass)
       case FixtureRef(variant, optClass) => resolveFixtureRef(None, optClass, elemClass, variant)
+      case FixtureEnum(value, optClass) => resolveEnum(value, elemClass)
     }
 
     block(actualValues)

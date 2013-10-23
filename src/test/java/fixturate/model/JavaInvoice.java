@@ -24,10 +24,12 @@ import java.util.List;
 public class JavaInvoice {
     private final Long number;
     private final List<JavaOrder> orders;
+    private final JavaInvoiceType invoiceType;
 
-    public JavaInvoice(Long number, List<JavaOrder> orders) {
+    public JavaInvoice(Long number, List<JavaOrder> orders, JavaInvoiceType invoiceType) {
         this.number = number;
         this.orders = orders;
+        this.invoiceType = invoiceType;
     }
 
     public Long getNumber() {
@@ -36,5 +38,9 @@ public class JavaInvoice {
 
     public List<JavaOrder> getOrders() {
         return orders;
+    }
+
+    public JavaInvoiceType getInvoiceType() {
+        return invoiceType;
     }
 }

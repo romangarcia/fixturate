@@ -1,11 +1,11 @@
-[pepe]
-firstName = "Pepe"
-lastName  = "Mugica"
+[john]
+firstName = "John"
+lastName  = "Doe"
 age       = 65
 alive     = true
     
-[cristina fernandez]
-firstName = "Cristina"
-lastName  = "Kirchner"
+[jane]
+firstName = "Jane"
+lastName  = "Doe"
 age       = 50
 alive     = false

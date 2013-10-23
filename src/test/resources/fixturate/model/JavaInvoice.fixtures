@@ -1,3 +1,4 @@
-[default]
+[invoice for john and jane]
 number         = 1
-orders    	   = $[producto uno], $[producto dos]
+orders    	   = $[product one], $[product two]
+invoiceType    = INVOICE

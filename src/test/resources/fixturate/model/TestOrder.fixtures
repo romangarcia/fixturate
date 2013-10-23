@@ -1,14 +1,14 @@
 [default]
 item           = 4321
-description    = "Un producto berreta"
-user           = $[pepe]
+description    = "Some Default Order For John"
+user           = $[john]
 
-[producto uno]
+[product one]
 item           = 1
-description    = "Producto Uno"
-user           = $[pepe]
+description    = "Some Order For John"
+user           = $[john]
 
-[producto dos]
+[product two]
 item           = 2
-description    = "Producto Dos"
-user           = $[cristina fernandez]
+description    = "Some Order For Jane"
+user           = $[jane]

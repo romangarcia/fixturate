@@ -19,14 +19,16 @@
 
 package fixturate
 
+import _root_.java.io.Reader
+import _root_.java.io.StringReader
 import org.scalatest.WordSpec
-import dridco.tests.fixturate.FixtureParser
-import java.io.Reader
+import dridco.tests.fixturate._
 import org.scalatest.matchers.ShouldMatchers
-import dridco.tests.fixturate.FixtureLiteral
-import dridco.tests.fixturate.FixtureRef
 import org.junit.runner.RunWith
 import org.scalatest.junit.JUnitRunner
+import dridco.tests.fixturate.FixtureRef
+import dridco.tests.fixturate.FixtureLiteral
+import dridco.tests.fixturate.FixtureEnum
 
 @RunWith(classOf[JUnitRunner])
 class FixtureParserSpec extends WordSpec with ShouldMatchers {
@@ -61,8 +63,15 @@ booleans = true, false, TRUE, FALSE
 refs  = $[lista de strings], $[lista de doubles], $[lista de booleans] 	    
                      """
 
+  val enumsVariant =
+    """
+[enumsVariant]
+singleEnum = AN_ENUM
+listOfEnums = ENUM_ONE, ENUM_TWO
+    """
+
   implicit def string2Reader(s: String) = new {
-    def reader: Reader = new java.io.StringReader(s)
+    def reader: Reader = new StringReader(s)
   }
 
   "Fixture Parser" should {
@@ -150,6 +159,15 @@ refs  = $[lista de strings], $[lista de doubles], $[lista de booleans]
       booleans(1) should be(FixtureLiteral(false))
       booleans(2) should be(FixtureLiteral(true))
       booleans(3) should be(FixtureLiteral(false))
+    }
+
+    "parse enums" in {
+      val data = FixtureParser.parse(enumsVariant.reader).get
+      data.variants should have length (1)
+      val enums = data.variant("enumsVariant").get
+      enums.properties should have length (2)
+      enums.properties(0) should be (FixtureProperty("singleEnum", List(FixtureEnum("AN_ENUM", None))))
+      enums.properties(1) should be (FixtureProperty("listOfEnums", List(FixtureEnum("ENUM_ONE", None), FixtureEnum("ENUM_TWO", None))))
     }
 
   }
