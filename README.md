@@ -16,11 +16,13 @@ Quick Start
  - In the fixture file, you declare different scenarios, and for each scenario you declare model properties
  - Properties names use the JavaBean convention, and should be valid Java identifiers
  - To inject a Constructor, declare properties using the same order they are declared in the constructor
- - Literal properties can be String (using '"' quote character), Long, Double or Boolean
+ - Literal properties can be String (using '"' quote character), Long, Double, Boolean or Enums
     - aStringProperty = "This is a valid String, always with quotes"
     - aLongProperty = 360
     - aDoubleProperty = 3.14
     - aBooleanProperty = true
+    - anEnumProperty = NANOSECONDS
+ - Enum container type is inferred from type to be injected
  - References to other model fixtures are declared using a special syntax: '$[scenario]'
     - aUserRefProperty = $[user with valid credentials]
  - Lists / Sets are declared using a comma separator between values
@@ -133,15 +135,20 @@ Example
 *Invoice Model* -- another via constructor, this time with a Java Collection involved
 
     package fixturate.example;
+
+    public enum InvoiceType {
+        CREDIT, DEBIT, INVOICE
+    }
+
     public class Invoice {
-
         private final Long number;
-
         private final List<Order> orders;
+        private final InvoiceType invoiceType;
 
-        public JavaInvoice(Long number, List<Order> orders) {
+        public JavaInvoice(Long number, List<Order> orders, InvoiceType invoiceType) {
             this.number = number;
             this.orders = orders;
+            this.invoiceType = invoiceType;
         }
 
         public Long getNumber() {
@@ -152,6 +159,9 @@ Example
             return orders;
         }
 
+        public InvoiceType getInvoiceType() {
+            return invoiceType;
+        }
     }
 
 *Invoice fixtures (file fixturate/example/Invoice.fixtures)*
@@ -159,6 +169,7 @@ Example
     [invoice for john and jane]
     number         = 1
     orders    	   = $[product one for john], $[product two for jane]
+    invoiceType    = CREDIT
 
 Usage
 =====
@@ -193,6 +204,18 @@ Usage
             }
         }
     }
+
+Build
+=====
+This library uses SBT to compile / package.
+
+See install instructions [here](http://www.scala-sbt.org/release/docs/Getting-Started/Setup.html)
+
+    $> git clone https://github.com/romangarcia/fixturate.git fixturate
+
+    $> cd fixturate
+
+    $> sbt clean package
 
 What's missing
 ==============

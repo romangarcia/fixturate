@@ -22,7 +22,6 @@ package fixturate
 import org.scalatest.matchers.ShouldMatchers
 import org.scalatest.WordSpec
 import dridco.tests.fixturate.Fixture
-import fixturate.model._
 import fixturate.model.TestUser
 import fixturate.model.TestOrder
 import fixturate.model.TestInvoice
@@ -58,19 +57,6 @@ class FixtureSpec extends WordSpec with ShouldMatchers {
       invoice.orders(0) should be(TestOrder(1L, "Some Order For John", TestUser("John", "Doe")))
       invoice.orders(1) should be(TestOrder(2L, "Some Order For Jane", TestUser("Jane", "Doe")))
     }
-
-   /* "retrieve complete JavaInvoice" in {
-      val invoice = Fixture[JavaInvoice].get("invoice for john and jane")
-      println(invoice)
-
-      invoice.getNumber should be(1L)
-      invoice.getOrders should have length (2)
-      invoice.getInvoiceType should be (JavaInvoiceType.INVOICE)
-      val firstOrder = invoice.getOrders.get(0)
-      firstOrder.getDescription should be("Some Order For John")
-      firstOrder.getItem should be(1L)
-      firstOrder.getUser.getFirstName should be("John")
-    }*/
   }
 
 
