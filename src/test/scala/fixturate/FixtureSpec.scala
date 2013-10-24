@@ -29,7 +29,7 @@ import fixturate.model.TestInvoice
 class FixtureSpec extends WordSpec with ShouldMatchers {
 
   "Fixture" should {
-    "retrieve complete TestUser" in {
+    "get complete TestUser" in {
       val john = Fixture[TestUser].get("john")
       println(john)
       john.getFirstName should be("John")
@@ -39,7 +39,7 @@ class FixtureSpec extends WordSpec with ShouldMatchers {
       john.alive should be(true)
     }
 
-    "retrieve complete TestOrder" in {
+    "get complete TestOrder" in {
       val order = Fixture[TestOrder].get()
       println(order)
 
@@ -48,7 +48,7 @@ class FixtureSpec extends WordSpec with ShouldMatchers {
       order.user should be(TestUser("John", "Doe"))
     }
 
-    "retrieve complete TestInvoice" in {
+    "get complete TestInvoice" in {
       val invoice = Fixture[TestInvoice].get("invoice for john and jane")
       println(invoice)
 
@@ -56,6 +56,25 @@ class FixtureSpec extends WordSpec with ShouldMatchers {
       invoice.orders should have length (2)
       invoice.orders(0) should be(TestOrder(1L, "Some Order For John", TestUser("John", "Doe")))
       invoice.orders(1) should be(TestOrder(2L, "Some Order For Jane", TestUser("Jane", "Doe")))
+    }
+
+    "get any TestInvoice with similar probability" in {
+      val anys = (1 to 100) map { i =>
+        Fixture[TestInvoice].any()
+      }
+
+      val diff = anys.count(_.getNumber == 1L) - anys.count(_.getNumber == 2)
+
+      // similar probability between fixtures
+      assert(diff < 10)
+    }
+
+    "get all TestInvoices" in {
+      Fixture[TestInvoice].all() should have length (3)
+    }
+
+    "get any number of TestInvoices" in {
+      Fixture[TestInvoice].any(2) should have length(2)
     }
   }
 

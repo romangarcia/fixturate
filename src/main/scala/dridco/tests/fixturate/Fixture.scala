@@ -29,6 +29,7 @@ import org.apache.commons.beanutils.ConvertUtils._
 import org.apache.commons.beanutils.BeanUtils._
 import org.apache.commons.beanutils.PropertyUtils
 import scala.collection.JavaConverters._
+import scala.collection.immutable.Stack
 
 object Fixture {
   def apply[T](testClass: Class[T]): Fixture[T] = new Fixture[T](testClass)
@@ -54,11 +55,23 @@ class Fixture[T](testClass: Class[T]) extends Logging {
   def get(): T = get("default")
 
   def get(variant: String): T = {
-
     val fixtureVariant = data.variant(variant).getOrElse {
       throw new IllegalArgumentException(s"No valid variant found [name: $variant]")
     }
 
+    getFixture(fixtureVariant)
+  }
+
+  def all(): List[T] =  data.variants.map(getFixture(_))
+
+  def any(): T = {
+    import scala.util.Random._
+    getFixture(data.variants(nextInt(data.variants.length)))
+  }
+
+  def any(n: Int): List[T] = all().take(n).sortBy( t => scala.util.Random.nextBoolean)
+
+  private def getFixture(fixtureVariant: FixtureVariant): T = {
     val constructors = testClass.getConstructors
     val instance = if (constructors.isEmpty) {
       throw new IllegalStateException(s"No constructors available to instantiate Fixture (${testClass.getSimpleName})")
@@ -123,6 +136,75 @@ class Fixture[T](testClass: Class[T]) extends Logging {
     Fixture(fixtureType).get(variant).asInstanceOf[AnyRef] // FIXME: check variance to avoid casting?
   }
 
+  private def convertProperties(props: List[FixtureProperty], types: Array[Type]): List[AnyRef] = {
+    val args = props.take(types.length)
+    val argsValues = args.zip(types).map {
+      propAndType =>
+        convertProperty(propAndType)
+    }
+
+    argsValues
+  }
+
+  private def convertProperty(propAndType: (FixtureProperty, Type)): AnyRef = propAndType match {
+    case (FixtureProperty(pName, values), expType) if expType.isJavaCollection => {
+      // java collection
+      withCollection(values, expType) {
+        actualValues =>
+          ClassTag(expType.toClass) match {
+            case c if c <:< classTag[_root_.java.util.List[_]] => new _root_.java.util.ArrayList(actualValues.asJavaCollection)
+            case c if c <:< classTag[_root_.java.util.Set[_]] => new _root_.java.util.HashSet(actualValues.asJavaCollection)
+          }
+      }
+    }
+    case (FixtureProperty(pName, values), expType) if expType.isScalaCollection => {
+      // scala collection
+      withCollection(values, expType) {
+        actualValues =>
+          ClassTag(expType.toClass) match {
+            case c if c <:< classTag[List[_]] => actualValues
+            case c if c <:< classTag[Seq[_]] => actualValues.toSeq
+            case c if c <:< classTag[Vector[_]] => actualValues.toVector
+          }
+      }
+    }
+    case (FixtureProperty(_, List(FixtureLiteral(value))), expType) =>
+      // fixture literal
+      debug(s"Converting property [value: $value, to-type: $expType]")
+      convert(value, expType.toClass)
+    case (FixtureProperty(pName, List(FixtureRef(variant, optClass))), expType) => {
+      // fixture ref
+      resolveFixtureRef(Some(pName), optClass, expType.toClass, variant)
+    }
+    case (FixtureProperty(pName, List(FixtureEnum(value, optClass))), expType) => {
+      // fixture enum
+      resolveEnum(value, expType)
+    }
+  }
+
+  private def resolveEnum(value: String, expType: Type): AnyRef = {
+    val values = expType.toClass.getEnumConstants
+    values.find(v => v.toString == value).getOrElse {
+      throw new Exception(s"Cannot map enum with value [$value] to enum type [$expType.toClass]")
+    }.asInstanceOf[AnyRef]
+  }
+
+  private def withCollection(values: List[FixtureValue], expType: Type)(block: List[AnyRef] => AnyRef): AnyRef = {
+    val elemClass = expType match {
+      case pt: ParameterizedType => pt.getActualTypeArguments()(0).toClass
+      case cl: Class[_] => cl
+    }
+
+    val actualValues = values map {
+      case FixtureLiteral(value) => convert(value, elemClass)
+      case FixtureRef(variant, optClass) => resolveFixtureRef(None, optClass, elemClass, variant)
+      case FixtureEnum(value, optClass) => resolveEnum(value, elemClass)
+    }
+
+    block(actualValues)
+
+  }
+
   implicit class PimpedType(aType: Type) {
     def toClass: Class[_] = resolveClass(aType)
 
@@ -138,70 +220,4 @@ class Fixture[T](testClass: Class[T]) extends Logging {
     }
   }
 
-  private def convertProperties(props: List[FixtureProperty], types: Array[Type]): List[AnyRef] = {
-    val args = props.take(types.length)
-    val argsValues = args.zip(types).map {
-      propAndType =>
-        convertProperty(propAndType)
-    }
-
-    argsValues
-  }
-
-  private def convertProperty(propAndType: (FixtureProperty, Type)): AnyRef = propAndType match {
-    case (FixtureProperty(_, List(FixtureLiteral(value))), expType) =>
-      // fixture literal
-      debug(s"Converting property [value: $value, to-type: $expType]")
-      convert(value, expType.toClass)
-    case (FixtureProperty(pName, List(FixtureRef(variant, optClass))), expType) => {
-      // fixture ref
-      resolveFixtureRef(Some(pName), optClass, expType.toClass, variant)
-    }
-    case (FixtureProperty(pName, List(FixtureEnum(value, optClass))), expType) => {
-      // fixture enum
-      resolveEnum(value, expType)
-    }
-    case (FixtureProperty(pName, values), expType) if expType.isJavaCollection => {
-      withCollection(values, expType) {
-        actualValues =>
-          ClassTag(expType.toClass) match {
-            case c if c <:< classTag[_root_.java.util.List[_]] => new _root_.java.util.ArrayList(actualValues.asJavaCollection)
-            case c if c <:< classTag[_root_.java.util.Set[_]] => new _root_.java.util.HashSet(actualValues.asJavaCollection)
-          }
-      }
-    }
-    case (FixtureProperty(pName, values), expType) if expType.isScalaCollection => {
-      withCollection(values, expType) {
-        actualValues =>
-          ClassTag(expType.toClass) match {
-            case c if c <:< classTag[List[_]] => actualValues
-            case c if c <:< classTag[Seq[_]] => actualValues.toSeq
-            case c if c <:< classTag[Vector[_]] => actualValues.toVector
-          }
-      }
-    }
-  }
-
-  def resolveEnum(value: String, expType: Type): AnyRef = {
-    val values = expType.toClass.getEnumConstants
-    values.find(v => v.toString == value).getOrElse {
-      throw new Exception(s"Cannot map enum with value [$value] to enum type [$expType.toClass]")
-    }.asInstanceOf[AnyRef]
-  }
-
-  def withCollection(values: List[FixtureValue], expType: Type)(block: List[AnyRef] => AnyRef): AnyRef = {
-    val elemClass = expType match {
-      case pt: ParameterizedType => pt.getActualTypeArguments()(0).toClass
-      case cl: Class[_] => cl
-    }
-
-    val actualValues = values map {
-      case FixtureLiteral(value) => convert(value, elemClass)
-      case FixtureRef(variant, optClass) => resolveFixtureRef(None, optClass, elemClass, variant)
-      case FixtureEnum(value, optClass) => resolveEnum(value, elemClass)
-    }
-
-    block(actualValues)
-
-  }
 }

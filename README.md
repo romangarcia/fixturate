@@ -44,7 +44,7 @@ Example
         private int age;
         private boolean alive;
 
-        public JavaUser(String firstName, String lastName) {
+        public User(String firstName, String lastName) {
             this.firstName = firstName;
             this.lastName = lastName;
         }
@@ -96,7 +96,7 @@ Example
         private final String description;
         private final User user;
 
-        public JavaOrder(Long item, String description, User user) {
+        public Order(Long item, String description, User user) {
             this.item = item;
             this.description = description;
             this.user = user;
@@ -145,7 +145,7 @@ Example
         private final List<Order> orders;
         private final InvoiceType invoiceType;
 
-        public JavaInvoice(Long number, List<Order> orders, InvoiceType invoiceType) {
+        public Invoice(Long number, List<Order> orders, InvoiceType invoiceType) {
             this.number = number;
             this.orders = orders;
             this.invoiceType = invoiceType;
