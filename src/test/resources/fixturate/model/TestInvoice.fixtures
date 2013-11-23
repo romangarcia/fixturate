@@ -9,3 +9,7 @@ orders    	   = $[product one]
 [invoice for jane only]
 number         = 3
 orders    	   = $[product two]
+
+[invoice with overriden order type]
+number         = 4
+orders         = $[fixturate.model.TestOrderSubclass:product subclass], $[product two]

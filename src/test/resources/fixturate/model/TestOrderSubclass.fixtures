@@ -1,0 +1,5 @@
+[product subclass]
+item           = 4321
+description    = "Some Default Order For John"
+user           = $[john]
+price          = 4321.123

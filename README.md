@@ -225,4 +225,5 @@ What's missing
 - all, any, any(5)...allow creating several fixtures on one call
 - Custom Parsers / Custom Converters
 - Get rid of the commons-beans dependency
-- Tool to export JavaBeans to fixtures datasets
+- Tool to export JavaBeans to fixtures datasets / static builders to scenarios
+-

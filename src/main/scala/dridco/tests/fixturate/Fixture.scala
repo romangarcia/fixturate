@@ -21,30 +21,36 @@ package dridco.tests.fixturate
 
 import _root_.java.io.InputStreamReader
 import _root_.java.lang.reflect.{Type, ParameterizedType, Constructor}
+import _root_.java.lang.Class
 import scala.reflect._
-import scala.util.control.NonFatal
+//import scala.util.control.NonFatal
 import grizzled.slf4j.Logging
 import org.apache.commons.beanutils.PropertyUtils._
 import org.apache.commons.beanutils.ConvertUtils._
 import org.apache.commons.beanutils.BeanUtils._
 import org.apache.commons.beanutils.PropertyUtils
 import scala.collection.JavaConverters._
-import scala.collection.immutable.Stack
 
 object Fixture {
   def apply[T](testClass: Class[T]): Fixture[T] = new Fixture[T](testClass)
 
-  def apply[T](implicit manifest: ClassTag[T]): Fixture[T] =
-    new Fixture[T](manifest.runtimeClass.asInstanceOf[Class[T]])
+  def apply[T](implicit manifest: ClassManifest[T]): Fixture[T] =
+    new Fixture[T](manifest.erasure.asInstanceOf[Class[T]])
 }
 
 class Fixture[T](testClass: Class[T]) extends Logging {
   val path = "/" + testClass.getPackage.getName.replaceAll("\\.", "/") + "/" + testClass.getSimpleName + ".fixtures"
 
+  implicit def pimpTypes(aType: Type) = new PimpedType(aType)
+
   lazy val data: FixtureData = {
-    val stream = testClass.getResourceAsStream(path).ensuring(_ != null, s"Fixture cannot be found at $path")
+    val stream = testClass.getResourceAsStream(path).ensuring(_ != null, "Fixture cannot be found at %s".format(path))
     try {
-      val fixData = FixtureParser.parse(new InputStreamReader(stream, "UTF-8")).get
+      val fixData = FixtureParser.parse(new InputStreamReader(stream, "UTF-8")) match {
+          case Left(err) => throw err
+          case Right(data) => data
+      }
+
       debug("Successfully parsed fixture: " + fixData)
       fixData
     } finally {
@@ -56,25 +62,25 @@ class Fixture[T](testClass: Class[T]) extends Logging {
 
   def get(variant: String): T = {
     val fixtureVariant = data.variant(variant).getOrElse {
-      throw new IllegalArgumentException(s"No valid variant found [name: $variant]")
+      throw new IllegalArgumentException("No valid variant found [name: %s]".format(variant))
     }
 
     getFixture(fixtureVariant)
   }
 
-  def all(): List[T] =  data.variants.map(getFixture(_))
+  def all(): List[T] =  data.variants.map(getFixture)
 
   def any(): T = {
     import scala.util.Random._
     getFixture(data.variants(nextInt(data.variants.length)))
   }
 
-  def any(n: Int): List[T] = all().take(n).sortBy( t => scala.util.Random.nextBoolean)
+  def any(n: Int): List[T] = all().take(n).sortBy( t => scala.util.Random.nextBoolean())
 
   private def getFixture(fixtureVariant: FixtureVariant): T = {
     val constructors = testClass.getConstructors
     val instance = if (constructors.isEmpty) {
-      throw new IllegalStateException(s"No constructors available to instantiate Fixture (${testClass.getSimpleName})")
+      throw new IllegalStateException("No constructors available to instantiate Fixture (%s)".format(testClass.getSimpleName))
     } else if (constructors.length == 1 && constructors(0).getParameterTypes.isEmpty) {
       // default constructor only
       testClass.newInstance()
@@ -116,18 +122,18 @@ class Fixture[T](testClass: Class[T]) extends Logging {
           try {
             val constructorTypes = c.getGenericParameterTypes
             val constructorArguments = convertProperties(variant.properties, constructorTypes)
-            debug(s"Converted constructor arguments: $constructorArguments")
+            debug("Converted constructor arguments: %s".format(constructorArguments))
             tempInstance = Some(c.newInstance(constructorArguments.toSeq: _*).asInstanceOf[T])
           } catch {
-            case NonFatal(e) =>
+            case e: Exception =>
               // ignore...we won't use this constructor
-              debug(s"Not valid constructor $c for model $testClass...", e)
+              debug("Not valid constructor $c for model %s...".format(testClass), e)
           }
         }
     }
 
     tempInstance.getOrElse {
-      throw new Exception(s"No valid constructor found for $testClass")
+      throw new Exception("No valid constructor found for %s".format(testClass))
     }
   }
 
@@ -151,9 +157,9 @@ class Fixture[T](testClass: Class[T]) extends Logging {
       // java collection
       withCollection(values, expType) {
         actualValues =>
-          ClassTag(expType.toClass) match {
-            case c if c <:< classTag[_root_.java.util.List[_]] => new _root_.java.util.ArrayList(actualValues.asJavaCollection)
-            case c if c <:< classTag[_root_.java.util.Set[_]] => new _root_.java.util.HashSet(actualValues.asJavaCollection)
+          ClassManifest.fromClass(expType.toClass) match {
+            case c if c <:< ClassManifest.fromClass(classOf[_root_.java.util.List[_]]) => new _root_.java.util.ArrayList(actualValues.asJavaCollection)
+            case c if c <:< ClassManifest.fromClass(classOf[_root_.java.util.Set[_]]) => new _root_.java.util.HashSet(actualValues.asJavaCollection)
           }
       }
     }
@@ -161,16 +167,16 @@ class Fixture[T](testClass: Class[T]) extends Logging {
       // scala collection
       withCollection(values, expType) {
         actualValues =>
-          ClassTag(expType.toClass) match {
-            case c if c <:< classTag[List[_]] => actualValues
-            case c if c <:< classTag[Seq[_]] => actualValues.toSeq
-            case c if c <:< classTag[Vector[_]] => actualValues.toVector
+            ClassManifest.fromClass(expType.toClass) match {
+            case c if c <:< ClassManifest.fromClass(classOf[List[_]]) => actualValues
+            case c if c <:< ClassManifest.fromClass(classOf[Seq[_]]) => actualValues.toSeq
+            case c if c <:< ClassManifest.fromClass(classOf[Vector[_]]) => actualValues.toList
           }
       }
     }
     case (FixtureProperty(_, List(FixtureLiteral(value))), expType) =>
       // fixture literal
-      debug(s"Converting property [value: $value, to-type: $expType]")
+      debug("Converting property [value: %s, to-type: %s]".format(value, expType))
       convert(value, expType.toClass)
     case (FixtureProperty(pName, List(FixtureRef(variant, optClass))), expType) => {
       // fixture ref
@@ -185,7 +191,7 @@ class Fixture[T](testClass: Class[T]) extends Logging {
   private def resolveEnum(value: String, expType: Type): AnyRef = {
     val values = expType.toClass.getEnumConstants
     values.find(v => v.toString == value).getOrElse {
-      throw new Exception(s"Cannot map enum with value [$value] to enum type [$expType.toClass]")
+      throw new Exception("Cannot map enum with value [%s] to enum type [%s]".format(value, expType.toClass))
     }.asInstanceOf[AnyRef]
   }
 
@@ -205,7 +211,7 @@ class Fixture[T](testClass: Class[T]) extends Logging {
 
   }
 
-  implicit class PimpedType(aType: Type) {
+  class PimpedType(aType: Type) {
     def toClass: Class[_] = resolveClass(aType)
 
     def isJavaCollection: Boolean = classOf[_root_.java.util.Collection[_]].isAssignableFrom(aType.toClass)
@@ -216,7 +222,7 @@ class Fixture[T](testClass: Class[T]) extends Logging {
     private def resolveClass(aType: Type): Class[_] = aType match {
       case cl: Class[_] => cl
       case pt: ParameterizedType => resolveClass(pt.getRawType)
-      case x => throw new IllegalArgumentException(s"Cannot resolve class from ${x.getClass}")
+      case x => throw new IllegalArgumentException("Cannot resolve class from %s".format(x.getClass))
     }
   }
 

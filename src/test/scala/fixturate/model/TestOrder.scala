@@ -1,5 +1,5 @@
 package fixturate.model
 
-import scala.beans.BeanProperty
+import scala.reflect.BeanProperty
 
-case class TestOrder(@BeanProperty val item: Long, @BeanProperty val description: String, @BeanProperty val user: TestUser)
+class TestOrder(@BeanProperty val item: Long, @BeanProperty val description: String, @BeanProperty val user: TestUser)

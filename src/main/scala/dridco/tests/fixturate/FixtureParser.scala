@@ -21,7 +21,6 @@ package dridco.tests.fixturate
 
 import _root_.java.io.Reader
 import scala.util.parsing.combinator.JavaTokenParsers
-import scala.util.Try
 
 case class FixtureData(variants: List[FixtureVariant]) {
   private lazy val variantsMap = variants.map(s => (s.name -> s)).toMap
@@ -46,7 +45,7 @@ case class FixtureRef(variant: String, model: Option[Class[_]]) extends FixtureV
 
 
 object FixtureParser extends JavaTokenParsers {
-  private def stringsAndWhitespaces = """[\w\s]+""".r
+  private def stringsAndWhitespaces = """[\w\s\.:]+""".r
 
   private def boolean = "(?i)true|false".r ^^ {
     b => FixtureLiteral(b.toBoolean.asInstanceOf[AnyRef])
@@ -64,13 +63,20 @@ object FixtureParser extends JavaTokenParsers {
     s => FixtureLiteral(s.substring(1, s.size - 1))
   }
 
-  private def ref = "$[" ~> stringsAndWhitespaces <~ "]" ^^ {
-    r => FixtureRef(r, None)
+  private def ref = "$[" ~> stringsAndWhitespaces <~ "]" ^^ { r =>
+      val parts = r.split(":")
+      if (parts.length > 1) {
+          FixtureRef(parts(1), Some(Class.forName(parts(0))))
+      } else {
+          FixtureRef(parts(0), None)
+      }
   }
 
   private def enum = ident ^^ {
     e => FixtureEnum(e, None)
   }
+
+  private def canonicalClass = """([\p{L}_$][\p{L}\p{N}_$]*\.)*[\p{L}_$][\p{L}\p{N}_$]*""".r
 
   private def propertyKey = ident
 
@@ -90,11 +96,10 @@ object FixtureParser extends JavaTokenParsers {
 
   private def expression = rep(variant)
 
-  def parse(input: Reader): Try[FixtureData] = {
+  def parse(input: Reader): Either[Exception, FixtureData] = {
     parseAll(expression, input) match {
-      case Success(result, _) => Try(FixtureData(result))
-      case NoSuccess(msg, next) =>
-        new scala.util.Failure(new Exception(msg + " at '" + next.pos.longString + "'"))
+      case Success(result, _) => Right(FixtureData(result))
+      case NoSuccess(msg, next) => Left(new Exception(msg + " at '" + next.pos.longString + "'"))
     }
 
   }
